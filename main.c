@@ -160,9 +160,6 @@ long  TriggerVoltage = 0;				/* The voltage on the trigger input in mV */
 long  DrainCurrent = 0;					/* The current through the drive FET in Amps */
 long  DrainVoltage = 0;					/* The voltage on the MOSFET drains mV */
 long  counter2 = 0;						/* Counter for Vibrate function */
-long  Time = 0;							/* Variable for Timer function */
-long  counter = 0;						/* Counter for Timer function */
-unsigned char  Sensor = 0;				/* Input pin number for ADC */
 long  Voltage = 0;						/* A/D convertor returned voltage in mV */
 long  count = 0;						/* local counter */
 long  VoltageOffset0 = 0;				/* A/D 5.0V REF offest error */
@@ -175,14 +172,10 @@ unsigned char  TriggerHold = 0;			/* Hold further shotting until trigger is rele
 long  ModeCounter = 0;					/* A main loop counter for the threeround auto fuction */
 unsigned char  GunFunction = Normal;	/* Operating mode DEFAULT if EEPROM = FF */
 /* 1 = Normal  2 = ThreeRound  3 = Semi Only*/
-unsigned char ucAddress = 0x00;			/* For EEPROM functions */
-unsigned char ucData = 0x00;			/* For EEPROM functions */
-unsigned char  ADCRange = 0;			/* 0 = 5.0V REF   1 = 2.56V REF  2 = 1.1V REF */
 long  count1 = 0;						/* Error loop counter */
 long  counter3 = 0;						/* Timer counter */
 long  counter4 = 0;						/* FastTimer counter */
 long  SBTCounter = 0;					/* Burst time function counter */
-unsigned char  PWMduty = 0x00;			/* Motor PWM control variable */
 long  counter5 = 0;						/* Master Reset time counter */
 long  GunFunctionFlag = 0;				/* Counter used in mode programing */
 unsigned char BatteryVoltageEEPROM = 0;	/* Stored initial battery voltage */
@@ -193,7 +186,6 @@ long RampSpeed = 0;						/* MotorRampSpeed variable */
 long TestValue = 0;						/* Factory test variable */
 unsigned char TestCode = 0;				/* Facotry test variable */
 unsigned char TestCounter = 0;			/* Factory test counter */
-unsigned char Event = 0;				/* Event logging variable */
 unsigned char EventOld = 0;				/* Event logging variable */
 unsigned char LiPO = 0;					/* LiPO battery status */
 long Aux0Data = 0;						/* Aux port 0 data variable */
@@ -205,9 +197,7 @@ unsigned char TemperatureMAX = 0;		/* Maximum temperature seen */
 long RunningTemp = 0;					/* CPU temperature */
 unsigned char CurrentMAX = 0;			/* Maxiumum current seen / 10 */
 unsigned char OverTempLockout = 0;		/* Over temperature lockout flag */
-long DiagTime = 0;						/* Diganostic variable */
 unsigned char count6 = 0;				/* Secret mode Loop counter */
-unsigned char VibCount = 0;				/* Multi vibration counter */
 unsigned char counter8 = 0;				/* Multi vibration counter */
 
 int main(void)
