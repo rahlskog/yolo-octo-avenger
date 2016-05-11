@@ -70,6 +70,10 @@ Future changes:
 
 /*	Include libraries */
 #include <avr/io.h> /* For all the odd ATTINY stuff */
+// KDevelop workaround
+#if !defined (__AVR_ATtiny85__)
+  #include <avr/iotn85.h>
+#endif
 
 /*	Define ATTINY85 ports (PBx) to the gun controls */
 /*	Note that these port numbers or NOT the physical pin numbers! */
