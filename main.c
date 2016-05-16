@@ -116,93 +116,93 @@ void MotorON(void);							/* Turns the motor on */
 void BreakOFF(void);						/* Turns the break off */
 void BreakON(void);							/* Turns the break on */
 void EnergizeFETs(void);					/* Enables the FETs in a controled way */
-void Timer(long Time);						/* A mS timer  Timer(123) = 123mS */
-void FastTimer(long Time);					/* An unclaibrated ~15uS fast timer */
-long GetVoltage(unsigned char Sensor, unsigned char ADCRange);	/* Gets the Voltage (in mV) from the chosen source (Drain, Trigger, Aux) */
+void Timer(int32_t Time);						/* A mS timer  Timer(123) = 123mS */
+void FastTimer(int32_t Time);					/* An unclaibrated ~15uS fast timer */
+int32_t GetVoltage(uint8_t Sensor, uint8_t ADCRange);	/* Gets the Voltage (in mV) from the chosen source (Drain, Trigger, Aux) */
 void Vibrate(void);							/* Vibrates the gun's motor for signaling the user */
 void CalibrateAtoD(void);					/* Calibrates A/D convertor */
-void EEPROM_write(unsigned char ucAdress, unsigned char ucData);	/* Write to EEPROM */
-unsigned char EEPROM_read(unsigned char ucAddress);					/* Read from EEPROM */
+void EEPROM_write(uint8_t ucAdress, uint8_t ucData);	/* Write to EEPROM */
+uint8_t EEPROM_read(uint8_t ucAddress);					/* Read from EEPROM */
 void ProgramEEPROM(void);					/*  User programming of the EEPROM */
 void ReadEEPROM(void);						/*  Get stored EEPROM data */
-void SetBurstTime(long ShotCounter);		/*	Set burst time function */
-void MotorPWM(char PWMduty);				/*	Motor PWM function */
+void SetBurstTime(int32_t ShotCounter);		/*	Set burst time function */
+void MotorPWM(int8_t PWMduty);				/*	Motor PWM function */
 void SetAUXPorts(void);						/*  Setup AUX ports */
 void FactoryDiagnostics(void);				/*  Factory test */
-void EventLog(char);						/*  Event logging */
-unsigned char LiPOStatus(void);				/*  LiPO battery check */
-//	void Diagnostic(long DiagTime);				/*  Diagnostic test routein */
+void EventLog(int8_t);						/*  Event logging */
+uint8_t LiPOStatus(void);				/*  LiPO battery check */
+//	void Diagnostic(int32_t DiagTime);				/*  Diagnostic test routein */
 void SecretMode (void);						/*  Secret Programming Mode */
-void Vibrate1 (unsigned char);				/*  Multiple Vibrations */
+void Vibrate1 (uint8_t);				/*  Multiple Vibrations */
 
 /*	Initialize variables */
 
-/* long is a 4 byte integer */
+/* int32_t is a 4 byte integer */
 
-unsigned char SemiOnlyLock = 0;				/* Semi-Only lock flag 0=off (default) 1=on 2=permant on*/
-unsigned char AutoRoll = 1;					/* 3-Round auto rollover flag 0=off 1=on (default) */
-unsigned char SoftStartEnable = 1;			/* Soft Start Enable 1=default */
-long HardBatteryVoltage = 0;				/* Hard Battery Voltage Setting in mV.  0=off*/
+uint8_t SemiOnlyLock = 0;				/* Semi-Only lock flag 0=off (default) 1=on 2=permant on*/
+uint8_t AutoRoll = 1;					/* 3-Round auto rollover flag 0=off 1=on (default) */
+uint8_t SoftStartEnable = 1;			/* Soft Start Enable 1=default */
+int32_t HardBatteryVoltage = 0;				/* Hard Battery Voltage Setting in mV.  0=off*/
 
 
-long  BatteryVoltageDroopWarning = 5500;/* mV */
-long  TriggerFiringVoltage = 6000;		/* mV */
-long  InitialBatteryVoltage = 0;		/* mV */
-long  BurstTimeFactor = 80;				/* The single to three round burst ratio DEFAULT if EEPROM = FF*/
+int32_t  BatteryVoltageDroopWarning = 5500;/* mV */
+int32_t  TriggerFiringVoltage = 6000;		/* mV */
+int32_t  InitialBatteryVoltage = 0;		/* mV */
+int16_t  BurstTimeFactor = 80;				/* The single to three round burst ratio DEFAULT if EEPROM = FF*/
 /* 100 = 3.00 X the single shot time. 2X+100% */
-long  BurstTimeFactorPercent = 0;		/* Real BurstTimeFactorPercent */
-unsigned char  MotorSpeed = 254;		/* 0 to 254 PWM value */
+int32_t  BurstTimeFactorPercent = 0;		/* Real BurstTimeFactorPercent */
+uint8_t  MotorSpeed = 254;		/* 0 to 254 PWM value */
 
-long  SingleShotTime = 70;				/* Default loops for single shot */
-long  BurstTime = 205;					/* Default motor on time for a burst */
+int32_t  SingleShotTime = 70;				/* Default loops for single shot */
+int32_t  BurstTime = 205;					/* Default motor on time for a burst */
 
-long  TimeFactor = 100;					/* Adjust for 1mS step.  Magically, the calibration factor = 100 */
-long  SingleShotTimeOld = 0;			/* Old value of single shot time */
-long  TimeFactorFast = 1;				/* A sub mS timer counter */
-unsigned char  ErrorCode = 0;			/* The Errors are each given a unique number */
-long  TriggerVoltage = 0;				/* The voltage on the trigger input in mV */
-long  DrainCurrent = 0;					/* The current through the drive FET in Amps */
-long  DrainVoltage = 0;					/* The voltage on the MOSFET drains mV */
-unsigned char  counter2 = 0;			/* Counter for Vibrate function */
-long  Voltage = 0;						/* A/D convertor returned voltage in mV */
-unsigned int  count = 0;				/* local counter */
-long  VoltageOffset0 = 0;				/* A/D 5.0V REF offest error */
-long  VoltageOffset1 = 0;				/* A/D 2.56V REF offest error */
-long  VoltageOffset2 = 0;				/* A/D 1.1V REF offest error */
-unsigned long  FiringCounter = 0;		/* Counts firing cycles*/
-unsigned char  GunMode = Normal;		/* 1=trigger control (Normal) 2=burst (ThreeRoundAuto) */
-long  ShotCounter = 0;					/* Shot count inside a burst */
-unsigned char  TriggerHold = 0;			/* Hold further shotting until trigger is released */
-long  ModeCounter = 0;					/* A main loop counter for the threeround auto fuction */
-unsigned char  GunFunction = Normal;	/* Operating mode DEFAULT if EEPROM = FF */
+int32_t  TimeFactor = 100;					/* Adjust for 1mS step.  Magically, the calibration factor = 100 */
+int32_t  SingleShotTimeOld = 0;			/* Old value of single shot time */
+int32_t  TimeFactorFast = 1;				/* A sub mS timer counter */
+uint8_t  ErrorCode = 0;			/* The Errors are each given a unique number */
+int32_t  TriggerVoltage = 0;				/* The voltage on the trigger input in mV */
+int32_t  DrainCurrent = 0;					/* The current through the drive FET in Amps */
+int32_t  DrainVoltage = 0;					/* The voltage on the MOSFET drains mV */
+uint8_t  counter2 = 0;			/* Counter for Vibrate function */
+int32_t  Voltage = 0;						/* A/D convertor returned voltage in mV */
+uint16_t count = 0;				/* local counter */
+int32_t  VoltageOffset0 = 0;				/* A/D 5.0V REF offest error */
+int32_t  VoltageOffset1 = 0;				/* A/D 2.56V REF offest error */
+int32_t  VoltageOffset2 = 0;				/* A/D 1.1V REF offest error */
+uint32_t  FiringCounter = 0;		/* Counts firing cycles*/
+uint8_t  GunMode = Normal;		/* 1=trigger control (Normal) 2=burst (ThreeRoundAuto) */
+int32_t  ShotCounter = 0;					/* Shot count inside a burst */
+uint8_t  TriggerHold = 0;			/* Hold further shotting until trigger is released */
+int32_t  ModeCounter = 0;					/* A main loop counter for the threeround auto fuction */
+uint8_t  GunFunction = Normal;	/* Operating mode DEFAULT if EEPROM = FF */
 /* 1 = Normal  2 = ThreeRound  3 = Semi Only*/
-long  count1 = 0;						/* Error loop counter */
-long  counter3 = 0;						/* Timer counter */
-long  counter4 = 0;						/* FastTimer counter */
-long  SBTCounter = 0;					/* Burst time function counter */
-long  counter5 = 0;						/* Master Reset time counter */
-long  GunFunctionFlag = 0;				/* Counter used in mode programing */
-unsigned char BatteryVoltageEEPROM = 0;	/* Stored initial battery voltage */
-unsigned char DroopWarningFlag = 0;		/* Droop warning counter */
-unsigned char DroopWarningFlag1 = 0;	/* Hard Droop warning counter */
-long counter6 = 0;						/* Motor softstart counter */
-long RampSpeed = 0;						/* MotorRampSpeed variable */
-long TestValue = 0;						/* Factory test variable */
-unsigned char TestCode = 0;				/* Facotry test variable */
-unsigned char TestCounter = 0;			/* Factory test counter */
-unsigned char EventOld = 0;				/* Event logging variable */
-unsigned char LiPO = 0;					/* LiPO battery status */
-long Aux0Data = 0;						/* Aux port 0 data variable */
-long Aux1Data = 0;						/* Aux port 1 data variable */
-unsigned char LiPOInstalled = 0;		/* LiPO Installed flag */
-unsigned char BatteryLimitReset = 0;	/* LiPO Installed flag */
-long DeadTimeCounter = 0;				/* Counter used to find battery rest time */
-unsigned char TemperatureMAX = 0;		/* Maximum temperature seen */
-long RunningTemp = 0;					/* CPU temperature */
-unsigned char CurrentMAX = 0;			/* Maxiumum current seen / 10 */
-unsigned char OverTempLockout = 0;		/* Over temperature lockout flag */
-unsigned char count6 = 0;				/* Secret mode Loop counter */
-unsigned char counter8 = 0;				/* Multi vibration counter */
+int32_t  count1 = 0;						/* Error loop counter */
+int32_t  counter3 = 0;						/* Timer counter */
+int32_t  counter4 = 0;						/* FastTimer counter */
+int32_t  SBTCounter = 0;					/* Burst time function counter */
+int32_t  counter5 = 0;						/* Master Reset time counter */
+int8_t  GunFunctionFlag = 0;				/* Counter used in mode programing */
+uint8_t BatteryVoltageEEPROM = 0;	/* Stored initial battery voltage */
+uint8_t DroopWarningFlag = 0;		/* Droop warning counter */
+uint8_t DroopWarningFlag1 = 0;	/* Hard Droop warning counter */
+int32_t counter6 = 0;						/* Motor softstart counter */
+int32_t RampSpeed = 0;						/* MotorRampSpeed variable */
+int32_t TestValue = 0;						/* Factory test variable */
+uint8_t TestCode = 0;				/* Facotry test variable */
+uint8_t TestCounter = 0;			/* Factory test counter */
+uint8_t EventOld = 0;				/* Event logging variable */
+uint8_t LiPO = 0;					/* LiPO battery status */
+int32_t Aux0Data = 0;						/* Aux port 0 data variable */
+int32_t Aux1Data = 0;						/* Aux port 1 data variable */
+uint8_t LiPOInstalled = 0;		/* LiPO Installed flag */
+uint8_t BatteryLimitReset = 0;	/* LiPO Installed flag */
+int32_t DeadTimeCounter = 0;				/* Counter used to find battery rest time */
+uint8_t TemperatureMAX = 0;		/* Maximum temperature seen */
+int32_t RunningTemp = 0;					/* CPU temperature */
+uint8_t CurrentMAX = 0;			/* Maxiumum current seen / 10 */
+uint8_t OverTempLockout = 0;		/* Over temperature lockout flag */
+uint8_t count6 = 0;				/* Secret mode Loop counter */
+uint8_t counter8 = 0;				/* Multi vibration counter */
 
 int main(void)
 {
@@ -382,7 +382,7 @@ MainLoop:
         ModeCounter = 0;
     }
 
-    /* Goto full auto in three round burst mode if trigger is held down 1/2 second longer */
+    /* Goto full auto in three round burst mode if trigger is held down 1/2 second int32_ter */
     if ((ModeCounter > 162) && (TriggerHold == 1) && (GunFunction != 3) && (AutoRoll == 1))
     {
         GunMode = ThreeRoundAuto;
@@ -590,14 +590,14 @@ void BreakON(void)
 }
 
 
-void Timer(long Time)  /* Timer(100) = 100mS */
+void Timer(int32_t Time)  /* Timer(100) = 100mS */
 {
     Time = Time * TimeFactor;
     for (counter3 = 0; counter3 <= Time; counter3++) {}
 }
 
 
-void FastTimer(long Time) /* Timer(50) = 672uS */
+void FastTimer(int32_t Time) /* Timer(50) = 672uS */
 {
     Time = Time * TimeFactorFast;
     for (counter4 = 0; counter4 <= Time; counter4++) {}
@@ -634,7 +634,7 @@ void SetAUXPorts(void)
 }
 
 
-long GetVoltage(unsigned char Sensor, unsigned char ADCRange)
+int32_t GetVoltage(uint8_t Sensor, uint8_t ADCRange)
 {
     /* Select input Source */
     if (ADCRange == 0)								/* 0-20V range */
@@ -779,7 +779,7 @@ void Vibrate(void)
     }
 }
 
-void Vibrate1(unsigned char VibCount)
+void Vibrate1(uint8_t VibCount)
 /* Vibrate multiple times */
 {
     for (counter8 = 0; counter8 < VibCount; counter8++)
@@ -792,7 +792,7 @@ void Vibrate1(unsigned char VibCount)
 
 /* EEPROM stuff copied directly from ATMEL data sheet */
 
-void EEPROM_write(unsigned char ucAddress, unsigned char ucData)
+void EEPROM_write(uint8_t ucAddress, uint8_t ucData)
 {
     /* Wait for completion of previous write */
     while (EECR & (1<<EEPE));
@@ -808,7 +808,7 @@ void EEPROM_write(unsigned char ucAddress, unsigned char ucData)
 }
 
 
-unsigned char EEPROM_read(unsigned char ucAddress)
+uint8_t EEPROM_read(uint8_t ucAddress)
 {
     /* Wait for completion of previous write */
     while (EECR & (1<<EEPE));
@@ -1120,7 +1120,7 @@ void ReadEEPROM(void)
 }
 
 
-void SetBurstTime(long ShotCounter)
+void SetBurstTime(int32_t ShotCounter)
 {
     SBTCounter++;
     /* Shot Three after gun is powered up is the golden shot */
@@ -1181,7 +1181,7 @@ void SetBurstTime(long ShotCounter)
 }
 
 
-void MotorPWM(char PWMduty)
+void MotorPWM(int8_t PWMduty)
 /* Controlling OC0B which is pin 6 to the motor drive */
 {
     if (PWMduty == 0)
@@ -1288,7 +1288,7 @@ TestResult:
 
 }
 
-void EventLog(char Event)
+void EventLog(int8_t Event)
 /*	0 = Factory Test Performed	0x40
 	1 = High Battery Voltage  	0x41
 	2 = Peak Current Limit		0x42
@@ -1307,7 +1307,7 @@ void EventLog(char Event)
 }
 
 
-unsigned char LiPOStatus(void)
+uint8_t LiPOStatus(void)
 /*	0 = No Monitor Present
 	1 = LiPO Battery OK
 	2 = LiPO Battery Weak
@@ -1336,7 +1336,7 @@ unsigned char LiPOStatus(void)
 }
 
 
-//void Diagnostic(long DiagTime)
+//void Diagnostic(int32_t DiagTime)
 /* program test output to led.  Only for development use */
 /*
 	{
