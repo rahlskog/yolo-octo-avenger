@@ -65,24 +65,12 @@ Future changes:
 */
 
 
-
-
-
 /*	Include libraries */
 #include <avr/io.h> /* For all the odd ATTINY stuff */
 // KDevelop workaround
 #if !defined (__AVR_ATtiny85__)
   #include <avr/iotn85.h>
 #endif
-
-/*	Define ATTINY85 ports (PBx) to the gun controls */
-/*	Note that these port numbers or NOT the physical pin numbers! */
-#define Drain 2			/* FET drain voltage port */
-#define Aux0 3			/* AUX 0 I/O port */
-#define Trigger 4		/* Trigger voltage port */
-#define Aux1 5			/* AUX 0 I/O port */
-#define Ground 10  		/* Internal A/D ground used for calibration */
-#define Temperature 11	/* Internal temperature probe.  Only use in mode 2 */
 
 /*	Variable definitions */
 
@@ -110,6 +98,25 @@ Future changes:
 #define Break 0x28
 #define Motor 0x2B
 
+typedef enum 
+{
+	ADC20V = 0,		/* Set ADC to 20000 mV range */
+	ADC10V = 1,		/* Set ADC to 10230 mV range */
+	ADC1V1 = 2		/* Set ADC to 1100 mV range */
+} ADCVoltage;
+
+/*	Define ATTINY85 ports (PBx) to the gun controls */
+/*	Note that these port numbers or NOT the physical pin numbers! */
+typedef enum
+{
+	Drain = 2,			/* FET drain voltage port */
+	Aux0 = 3,			/* AUX 0 I/O port */
+	Trigger = 4,		/* Trigger voltage port */
+	Aux1 = 5,			/* AUX 0 I/O port */
+	Ground = 10,  		/* Internal A/D ground used for calibration */
+	Temperature = 11	/* Internal temperature probe.  Only use in mode 2 */
+} ADCInput;
+
 /* Function prototypes */
 void MotorOFF(void);						/* Turns the motor off */
 void MotorON(void);							/* Turns the motor on */
@@ -118,7 +125,7 @@ void BreakON(void);							/* Turns the break on */
 void EnergizeFETs(void);					/* Enables the FETs in a controled way */
 void Timer(int32_t Time);						/* A mS timer  Timer(123) = 123mS */
 void FastTimer(int32_t Time);					/* An unclaibrated ~15uS fast timer */
-int32_t GetVoltage(uint8_t Sensor, uint8_t ADCRange);	/* Gets the Voltage (in mV) from the chosen source (Drain, Trigger, Aux) */
+uint16_t GetVoltage(ADCInput Sensor, ADCVoltage ADCRange);	/* Gets the Voltage (in mV) from the chosen source (Drain, Trigger, Aux) */
 void Vibrate(void);							/* Vibrates the gun's motor for signaling the user */
 void CalibrateAtoD(void);					/* Calibrates A/D convertor */
 void EEPROM_write(uint8_t ucAdress, uint8_t ucData);	/* Write to EEPROM */
@@ -136,64 +143,52 @@ void SecretMode (void);						/*  Secret Programming Mode */
 void Vibrate1 (uint8_t);				/*  Multiple Vibrations */
 
 /*	Initialize variables */
+static const int32_t  TimeFactor = 100;					/* Adjust for 1mS step.  Magically, the calibration factor = 100 */
+static const int32_t  TimeFactorFast = 1;				/* A sub mS timer counter */
 
 /* int32_t is a 4 byte integer */
 
 uint8_t SemiOnlyLock = 0;				/* Semi-Only lock flag 0=off (default) 1=on 2=permant on*/
 uint8_t AutoRoll = 1;					/* 3-Round auto rollover flag 0=off 1=on (default) */
 uint8_t SoftStartEnable = 1;			/* Soft Start Enable 1=default */
+uint32_t  FiringCounter = 0;		/* Counts firing cycles*/
+
 int32_t HardBatteryVoltage = 0;				/* Hard Battery Voltage Setting in mV.  0=off*/
-
-
 int32_t  BatteryVoltageDroopWarning = 5500;/* mV */
 int32_t  TriggerFiringVoltage = 6000;		/* mV */
 int32_t  InitialBatteryVoltage = 0;		/* mV */
-int16_t  BurstTimeFactor = 80;				/* The single to three round burst ratio DEFAULT if EEPROM = FF*/
-/* 100 = 3.00 X the single shot time. 2X+100% */
-int32_t  BurstTimeFactorPercent = 0;		/* Real BurstTimeFactorPercent */
-uint8_t  MotorSpeed = 254;		/* 0 to 254 PWM value */
-
-int32_t  SingleShotTime = 70;				/* Default loops for single shot */
-int32_t  BurstTime = 205;					/* Default motor on time for a burst */
-
-int32_t  TimeFactor = 100;					/* Adjust for 1mS step.  Magically, the calibration factor = 100 */
-int32_t  SingleShotTimeOld = 0;			/* Old value of single shot time */
-int32_t  TimeFactorFast = 1;				/* A sub mS timer counter */
-uint8_t  ErrorCode = 0;			/* The Errors are each given a unique number */
 int32_t  TriggerVoltage = 0;				/* The voltage on the trigger input in mV */
 int32_t  DrainCurrent = 0;					/* The current through the drive FET in Amps */
 int32_t  DrainVoltage = 0;					/* The voltage on the MOSFET drains mV */
-uint8_t  counter2 = 0;			/* Counter for Vibrate function */
-int32_t  Voltage = 0;						/* A/D convertor returned voltage in mV */
-uint16_t count = 0;				/* local counter */
 int32_t  VoltageOffset0 = 0;				/* A/D 5.0V REF offest error */
 int32_t  VoltageOffset1 = 0;				/* A/D 2.56V REF offest error */
 int32_t  VoltageOffset2 = 0;				/* A/D 1.1V REF offest error */
-uint32_t  FiringCounter = 0;		/* Counts firing cycles*/
+
+uint8_t  BurstTimeFactor = 80;				/* The single to three round burst ratio DEFAULT if EEPROM = FF*/
+/* 100 = 3.00 X the single shot time. 2X+100% */
+int16_t  BurstTimeFactorPercent = 0;		/* Real BurstTimeFactorPercent */
+uint8_t  MotorSpeed = 254;		/* 0 to 254 PWM value */
+int16_t  SingleShotTime = 70;				/* Default loops for single shot */
+int16_t  BurstTime = 205;					/* Default motor on time for a burst */
+int16_t  SingleShotTimeOld = 0;			/* Old value of single shot time */
+uint8_t  ErrorCode = 0;			/* The Errors are each given a unique number */
+uint16_t count = 0;				/* local counter */
 uint8_t  GunMode = Normal;		/* 1=trigger control (Normal) 2=burst (ThreeRoundAuto) */
 int32_t  ShotCounter = 0;					/* Shot count inside a burst */
 uint8_t  TriggerHold = 0;			/* Hold further shotting until trigger is released */
 int32_t  ModeCounter = 0;					/* A main loop counter for the threeround auto fuction */
 uint8_t  GunFunction = Normal;	/* Operating mode DEFAULT if EEPROM = FF */
 /* 1 = Normal  2 = ThreeRound  3 = Semi Only*/
-int32_t  count1 = 0;						/* Error loop counter */
-int32_t  counter3 = 0;						/* Timer counter */
-int32_t  counter4 = 0;						/* FastTimer counter */
 int32_t  SBTCounter = 0;					/* Burst time function counter */
-int32_t  counter5 = 0;						/* Master Reset time counter */
+uint16_t counter5 = 0;						/* Master Reset time counter */
 int8_t  GunFunctionFlag = 0;				/* Counter used in mode programing */
 uint8_t BatteryVoltageEEPROM = 0;	/* Stored initial battery voltage */
 uint8_t DroopWarningFlag = 0;		/* Droop warning counter */
 uint8_t DroopWarningFlag1 = 0;	/* Hard Droop warning counter */
-int32_t counter6 = 0;						/* Motor softstart counter */
-int32_t RampSpeed = 0;						/* MotorRampSpeed variable */
-int32_t TestValue = 0;						/* Factory test variable */
 uint8_t TestCode = 0;				/* Facotry test variable */
 uint8_t TestCounter = 0;			/* Factory test counter */
 uint8_t EventOld = 0;				/* Event logging variable */
 uint8_t LiPO = 0;					/* LiPO battery status */
-int32_t Aux0Data = 0;						/* Aux port 0 data variable */
-int32_t Aux1Data = 0;						/* Aux port 1 data variable */
 uint8_t LiPOInstalled = 0;		/* LiPO Installed flag */
 uint8_t BatteryLimitReset = 0;	/* LiPO Installed flag */
 int32_t DeadTimeCounter = 0;				/* Counter used to find battery rest time */
@@ -202,7 +197,6 @@ int32_t RunningTemp = 0;					/* CPU temperature */
 uint8_t CurrentMAX = 0;			/* Maxiumum current seen / 10 */
 uint8_t OverTempLockout = 0;		/* Over temperature lockout flag */
 uint8_t count6 = 0;				/* Secret mode Loop counter */
-uint8_t counter8 = 0;				/* Multi vibration counter */
 
 int main(void)
 {
@@ -217,7 +211,7 @@ int main(void)
     CalibrateAtoD();
 
     /*	Check trigger voltage */
-    if (GetVoltage(Trigger,0) > TrigTrip)
+    if (GetVoltage(Trigger, ADC20V) > TrigTrip)
     {
         ErrorCode = 4;
     }
@@ -232,7 +226,7 @@ int main(void)
     SetAUXPorts();
 
     /*	Check drain voltage */
-    DrainVoltage = (GetVoltage(Drain,0));
+    DrainVoltage = GetVoltage(Drain, ADC20V);
     if (DrainVoltage < LowBatteryVoltage)
     {
         ErrorCode = 2;
@@ -246,7 +240,7 @@ int main(void)
     /*  Set Battery Limits */
     if (InitialBatteryVoltage == 0)
     {
-        InitialBatteryVoltage = (GetVoltage(Drain,0));
+        InitialBatteryVoltage = (GetVoltage(Drain, ADC20V));
     }
     if (HardBatteryVoltage != 0)
     {
@@ -258,7 +252,7 @@ int main(void)
     LiPO = LiPOStatus();
 
     /*	Vibrate status to motor */
-    for (count1 = 0; count1 < ErrorCode; count1++)
+    for (count = 0; count < ErrorCode; count++)
     {
         Timer(500);
         Vibrate();
@@ -286,7 +280,7 @@ Halt:
     /*	Wait for trigger pull to enter programming mode (2 seconds) */
     for (count=0; count < 1185; count++)
     {
-        if (GetVoltage(Trigger,0) > LowBatteryVoltage)
+        if (GetVoltage(Trigger, ADC20V) > LowBatteryVoltage)
         {
             ProgramEEPROM();
         }
@@ -319,7 +313,7 @@ MainLoop:
     MotorOFF();
 
     /*	Check trigger voltage */
-    TriggerVoltage = GetVoltage(Trigger,0);
+    TriggerVoltage = GetVoltage(Trigger, ADC20V);
 
     if ((TriggerVoltage < TriggerFiringVoltage) && (TriggerVoltage > LowBatteryVoltage))
     {
@@ -382,7 +376,7 @@ MainLoop:
         ModeCounter = 0;
     }
 
-    /* Goto full auto in three round burst mode if trigger is held down 1/2 second int32_ter */
+    /* Goto full auto in three round burst mode if trigger is held down 1/2 second inter */
     if ((ModeCounter > 162) && (TriggerHold == 1) && (GunFunction != 3) && (AutoRoll == 1))
     {
         GunMode = ThreeRoundAuto;
@@ -393,7 +387,7 @@ MainLoop:
     /*  Reset Battery Limits after 300 triggers*/
     if ((BatteryLimitReset == 0) && (FiringCounter > 300) && (DeadTimeCounter > 1000) && (HardBatteryVoltage != 0))
     {
-        InitialBatteryVoltage = (GetVoltage(Drain,0));
+        InitialBatteryVoltage = (GetVoltage(Drain, ADC20V));
         TriggerFiringVoltage = (InitialBatteryVoltage * TriggerFiringVoltagePercent) / 100;
         BatteryVoltageDroopWarning = (InitialBatteryVoltage * BatteryVoltageDroopWarningPercent) / 100;
         EventLog(4);
@@ -419,7 +413,7 @@ Fire:
 
 ShotDetect:  /* Main firing loop. */
     ShotCounter++;
-    TriggerVoltage = GetVoltage(Trigger,1);	/* Get trigger voltage */
+    TriggerVoltage = GetVoltage(Trigger, ADC10V);	/* Get trigger voltage */
     if (TriggerVoltage < TriggerHoldVoltage)  /* Is trigger off now? */
     {
         if ((GunFunction == Normal) || (GunMode == ThreeRoundAuto))
@@ -467,7 +461,7 @@ CeaseFire:
     }
 
     /*  Check unit temperature */
-    RunningTemp = GetVoltage(Temperature,2);
+    RunningTemp = GetVoltage(Temperature, ADC1V1);
 
     RunningTemp = (RunningTemp - 298) * 100 / 109;
     if (RunningTemp >= TemperatureLimit)
@@ -548,7 +542,7 @@ void MotorON(void)
     PORTB = Motor;	/* motor is on for peak current test */
     Timer(1);	/* Wait to stabalize */
     /*	Check drain current for over peak current limit */
-    DrainCurrent = GetVoltage(Drain,1) * 1000 / RDSon;
+    DrainCurrent = GetVoltage(Drain, ADC10V) * 1000 / RDSon;
     PORTB = Neutral;	/* motor is off after test */
     if (DrainCurrent > DrainCurrentPeakLimit)
     {
@@ -562,15 +556,14 @@ void MotorON(void)
     /* Soft Start */
     if (SoftStartEnable == 1)
     {
-        for (counter6 = 0; counter6 < 51; counter6++)
+        for (uint8_t counter = 0; counter < 51; counter++)
         {
-            RampSpeed = MotorSpeed / 2 + (MotorSpeed * counter6) / 100;
+            uint8_t RampSpeed = MotorSpeed / 2 + (MotorSpeed * counter) / 100;
             OCR0B = (char)RampSpeed;
         }
     }
     else
     {
-        RampSpeed = MotorSpeed / 2 + (MotorSpeed * counter6) / 100;
         OCR0B = (char)MotorSpeed;
     }
 }
@@ -593,14 +586,14 @@ void BreakON(void)
 void Timer(int32_t Time)  /* Timer(100) = 100mS */
 {
     Time = Time * TimeFactor;
-    for (counter3 = 0; counter3 <= Time; counter3++) {}
+    for (int32_t counter = 0; counter <= Time; counter++) {}
 }
 
 
 void FastTimer(int32_t Time) /* Timer(50) = 672uS */
 {
     Time = Time * TimeFactorFast;
-    for (counter4 = 0; counter4 <= Time; counter4++) {}
+    for (int32_t counter = 0; counter <= Time; counter++) {}
 }
 
 
@@ -634,82 +627,49 @@ void SetAUXPorts(void)
 }
 
 
-int32_t GetVoltage(uint8_t Sensor, uint8_t ADCRange)
+uint16_t GetVoltage(ADCInput Sensor, ADCVoltage ADCRange)
 {
-    /* Select input Source */
-    if (ADCRange == 0)								/* 0-20V range */
+    int32_t  Voltage = 0;				/* A/D convertor returned voltage in mV */
+    if (ADCRange == ADC1V1)				/* 0-1.1V range */
     {
-        if (Sensor == Aux1)
-        {
-            ADMUX = 0x00;
-        }
-        if (Sensor == Drain)
-        {
-            ADMUX = 0x01;
-        }
-        if (Sensor == Trigger)
-        {
-            ADMUX = 0x02;
-        }
-        if (Sensor == Aux0)
-        {
-            ADMUX = 0x03;
-        }
-        if (Sensor == Ground)
-        {
-            ADMUX = 0x0D;   /* Internal ground for calibration */
-        }
-    }
-    if (ADCRange == 1)								/* 0-10.23V range */
+		ADMUX = 0x80;
+	}
+	else if (ADCRange == ADC10V)		/* 0-10.23V range */
     {
-        if (Sensor == Aux1)
-        {
-            ADMUX = 0x90;
-        }
-        if (Sensor == Drain)
-        {
-            ADMUX = 0x91;
-        }
-        if (Sensor == Trigger)
-        {
-            ADMUX = 0x92;
-        }
-        if (Sensor == Aux0)
-        {
-            ADMUX = 0x93;
-        }
-        if (Sensor == Ground)
-        {
-            ADMUX = 0x9D;   /* Internal ground for calibration */
-        }
-    }
-    if (ADCRange == 2)								/* 0-1.1V range */
-    {
-        if (Sensor == Aux1)
-        {
-            ADMUX = 0x80;
-        }
-        if (Sensor == Drain)
-        {
-            ADMUX = 0x81;
-        }
-        if (Sensor == Trigger)
-        {
-            ADMUX = 0x82;
-        }
-        if (Sensor == Aux0)
-        {
-            ADMUX = 0x83;
-        }
-        if (Sensor == Ground)
-        {
-            ADMUX = 0x8D;   /* Internal ground for calibration */
-        }
-        if (Sensor == Temperature)
-        {
-            ADMUX = 0x8F;   /* Can only be used with 1.1V referance */
-        }
-    }
+		ADMUX = 0x90;
+	}
+    else /*if (ADCRange == ADC20V)*/	/* 0-20V range */
+	{
+		ADMUX = 0x00;
+	}
+	
+	switch (Sensor)
+	{
+		case Aux1:
+			ADMUX |= 0x00;
+			break;
+		case Drain:
+			ADMUX |= 0x01;
+			break;
+		case Trigger:
+			ADMUX |= 0x02;
+			break;
+		case Aux0:
+			ADMUX |= 0x03;
+			break;
+		case Ground:
+			ADMUX |= 0x0D;   /* Internal ground for calibration */
+			break;
+		case Temperature:
+			if (ADCRange == ADC1V1)
+			{
+				ADMUX = 0x0F;   /* Can only be used with 1.1V referance */
+				break;
+			}
+		default:
+			ADMUX |= 0x0D;
+	}
+
     /* Start A/D conversion */
     ADCSRA = 0b11000110;  						/* Start A/D conversion (bit 6 is set) 125kHz clock*/
     /* Test if done (bit 6 goes clear, but is set when A/D is complete) */
@@ -717,7 +677,7 @@ int32_t GetVoltage(uint8_t Sensor, uint8_t ADCRange)
     while (bit_is_set(ADCSRA,6));
     /* Get voltage Vref = 5000mV  Rdivider = 1/4  Full range is 20V */
     Voltage = ADCW;								/* This word is the 10 bit A/D result */
-    if (ADCRange == 0)
+    if (ADCRange == ADC20V)
     {
         Voltage = Voltage - VoltageOffset0;  	/* A/D Offset error adjustment */
         if (Voltage < 0)
@@ -726,7 +686,7 @@ int32_t GetVoltage(uint8_t Sensor, uint8_t ADCRange)
         }
         Voltage = ((Voltage * 20000) / 1023);	/* Convert A/D full range (1023) to 19980mV or 19.98V */
     }
-    if (ADCRange == 1)
+    if (ADCRange == ADC10V)
     {
         Voltage = Voltage - VoltageOffset1;  	/* A/D Offset error adjustment */
         if (Voltage < 0)
@@ -735,7 +695,7 @@ int32_t GetVoltage(uint8_t Sensor, uint8_t ADCRange)
         }
         Voltage = Voltage * 10;					/* Convert A/D full range (1023) to 10230mV or 10.23V */
     }
-    if (ADCRange == 2)
+    if (ADCRange == ADC1V1)
     {
         Voltage = Voltage - VoltageOffset2;  	/* A/D Offset error adjustment */
         if (Voltage < 0)
@@ -744,7 +704,7 @@ int32_t GetVoltage(uint8_t Sensor, uint8_t ADCRange)
         }
         Voltage = Voltage * 1100 / 1023;		/* Convert A/D full range (1023) to 1100mV or 1.100V */
     }
-    return Voltage;
+    return (uint16_t)Voltage;
 }
 
 
@@ -752,15 +712,15 @@ void CalibrateAtoD(void)
 {
     /* 5.0V REF  Range = 20V */
     VoltageOffset0 = 0;							/* Clear old value */
-    VoltageOffset0 = GetVoltage (Ground, 0);	/* Run the converter with grounded input */
+    VoltageOffset0 = GetVoltage (Ground, ADC20V);	/* Run the converter with grounded input */
     VoltageOffset0 = ADCW;
     /* 2.56V REF  Range = 10.23V */
     VoltageOffset1 = 0;							/* Clear old value */
-    VoltageOffset1 = GetVoltage (Ground, 1);	/* Run the converter with grounded input */
+    VoltageOffset1 = GetVoltage (Ground, ADC10V);	/* Run the converter with grounded input */
     VoltageOffset1 = ADCW;						/* Get the raw A/D converter output word */
     /* 1.1V REF  Range = 1.1V */
     VoltageOffset2 = 0;							/* Clear old value */
-    VoltageOffset2 = GetVoltage (Ground, 2);	/* Run the converter with grounded input */
+    VoltageOffset2 = GetVoltage (Ground, ADC1V1);	/* Run the converter with grounded input */
     VoltageOffset2 = ADCW;						/* Get the raw A/D converter output word */
 }
 
@@ -770,7 +730,7 @@ void Vibrate(void)
     /* Vibrate for 1/2 second */
     BreakOFF();
     Timer(1);
-    for (counter2 = 0; counter2 < 10; counter2++)
+    for (uint8_t counter = 0; counter < 10; counter++)
     {
         PORTB = Motor;
         FastTimer(20);		/* Wait 500uS for motor on pulse */
@@ -782,7 +742,7 @@ void Vibrate(void)
 void Vibrate1(uint8_t VibCount)
 /* Vibrate multiple times */
 {
-    for (counter8 = 0; counter8 < VibCount; counter8++)
+    for (uint8_t counter = 0; counter < VibCount; counter++)
     {
         Vibrate();
         Timer(250);
@@ -847,11 +807,11 @@ void ProgramEEPROM(void)
     GunFunctionFlag = 0;
     for (count=0; count < 600; count++)
     {
-        if (GetVoltage(Trigger,0) < TrigTrip)
+        if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
             TriggerHold = 0;   /* Tigger hold is a debounce for the trigger switch */
         }
-        if (((GetVoltage(Trigger,0) > LowBatteryVoltage)) && (TriggerHold == 0))
+        if (((GetVoltage(Trigger, ADC20V) > LowBatteryVoltage)) && (TriggerHold == 0))
         {
             GunFunctionFlag++;
             GunFunction = GunFunctionFlag;
@@ -869,11 +829,11 @@ void ProgramEEPROM(void)
     /* Pull Trigger now to go to decrease BurstTimeFactor by number of trigger pulls.  Limit = 0*/
     for (count=0; count < 600; count++)
     {
-        if (GetVoltage(Trigger,0) < TrigTrip)
+        if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
             TriggerHold = 0;   /* Tigger hold is a debounce for the trigger switch */
         }
-        if (((GetVoltage(Trigger,0) > LowBatteryVoltage) && (TriggerHold == 0) && (BurstTimeFactor > 0)))
+        if (((GetVoltage(Trigger, ADC20V) > LowBatteryVoltage) && (TriggerHold == 0) && (BurstTimeFactor > 0)))
         {
             BurstTimeFactor--;
             count = 0;
@@ -886,11 +846,11 @@ void ProgramEEPROM(void)
     /* Pull Trigger now to go to increase BurstTimeFactor by number of trigger pulls.  Limit = 250 */
     for (count=0; count < 600; count++)
     {
-        if (GetVoltage(Trigger,0) < TrigTrip)
+        if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
             TriggerHold = 0;   /* TiggerHold is a debounce for the trigger switch */
         }
-        if (((GetVoltage(Trigger,0) > LowBatteryVoltage) && (TriggerHold == 0) && (BurstTimeFactor < 250)))
+        if (((GetVoltage(Trigger, ADC20V) > LowBatteryVoltage) && (TriggerHold == 0) && (BurstTimeFactor < 250)))
         {
             BurstTimeFactor++;
             count = 0;
@@ -903,11 +863,11 @@ void ProgramEEPROM(void)
     /* Pull Trigger now to go to decrease MotorSpeed by number of trigger pulls.  Limit = 52*/
     for (count=0; count < 600; count++)
     {
-        if (GetVoltage(Trigger,0) < TrigTrip)
+        if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
             TriggerHold = 0;   /* Tigger hold is a debounce for the trigger switch */
         }
-        if (((GetVoltage(Trigger,0) > LowBatteryVoltage) && (TriggerHold == 0) && (MotorSpeed > 0)))
+        if (((GetVoltage(Trigger, ADC20V) > LowBatteryVoltage) && (TriggerHold == 0) && (MotorSpeed > 0)))
         {
             MotorSpeed = (MotorSpeed * 9) / 10;
             count = 0;
@@ -921,11 +881,11 @@ void ProgramEEPROM(void)
     /* Pull Trigger now to go to increase MotorSpeed by number of trigger pulls.  Limit = 254 */
     for (count=0; count < 600; count++)
     {
-        if (GetVoltage(Trigger,0) < TrigTrip)
+        if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
             TriggerHold = 0;   /* TiggerHold is a debounce for the trigger switch */
         }
-        if (((GetVoltage(Trigger,0) > LowBatteryVoltage) && (TriggerHold == 0) && (MotorSpeed < 255)))
+        if (((GetVoltage(Trigger, ADC20V) > LowBatteryVoltage) && (TriggerHold == 0) && (MotorSpeed < 255)))
         {
             if (MotorSpeed < 232)
             {
@@ -967,7 +927,7 @@ void ProgramEEPROM(void)
         MotorSpeed = 254;
     }
     EEPROM_write(0x04, (char)MotorSpeed);
-    InitialBatteryVoltage = (GetVoltage(Drain,0));
+    InitialBatteryVoltage = (GetVoltage(Drain, ADC20V));
     BatteryVoltageEEPROM = (char)(InitialBatteryVoltage / 100);
     EEPROM_write(0x05, (char)BatteryVoltageEEPROM);
 
@@ -977,7 +937,7 @@ void ProgramEEPROM(void)
     counter5 = 0;
     for (count=0; count < 600; count++)
     {
-        while (GetVoltage(Trigger,0) > LowBatteryVoltage)
+        while (GetVoltage(Trigger, ADC20V) > LowBatteryVoltage)
         {
             counter5++;
             if (counter5 > 1500)
@@ -1006,11 +966,11 @@ void ProgramEEPROM(void)
                 count6 = 0;
                 for (count=0; count < 600; count++)
                 {
-                    if (GetVoltage(Trigger,0) < TrigTrip)
+                    if (GetVoltage(Trigger, ADC20V) < TrigTrip)
                     {
                         TriggerHold = 0;
                     }
-                    if (((GetVoltage(Trigger,0) > LowBatteryVoltage)) && (TriggerHold == 0))
+                    if (((GetVoltage(Trigger, ADC20V) > LowBatteryVoltage)) && (TriggerHold == 0))
                     {
                         count6++;
                         if (count6 == 10)
@@ -1204,8 +1164,9 @@ void MotorPWM(int8_t PWMduty)
 void FactoryDiagnostics(void)
 /* Factory test */
 {
+	int32_t TestValue = 0;	/* Factory test variable */
     /* Test for Trigger Key voltage */
-    TestValue = GetVoltage(Trigger,0);
+    TestValue = GetVoltage(Trigger, ADC20V);
     if ((TestValue < 4392) || (TestValue > 5368))
     {
         return;
@@ -1218,24 +1179,24 @@ TestResult:
     TestCode = 1;
     PORTB = 0x01; /* Turn FETs off */
     Timer(2000);
-    TestValue = GetVoltage(Trigger,0); /* Trigger sense test */
+    TestValue = GetVoltage(Trigger, ADC20V); /* Trigger sense test */
     if ((TestValue < 4734) || (TestValue > 5025))
     {
         TestCode = 2;
     }
-    TestValue = GetVoltage(Trigger,1); /* Trigger sense test */
+    TestValue = GetVoltage(Trigger, ADC10V); /* Trigger sense test */
     if ((TestValue < 4734) || (TestValue > 5025))
     {
         TestCode = 3;
     }
-    TestValue = GetVoltage(Drain,1); /* Drain sense test */
+    TestValue = GetVoltage(Drain, ADC10V); /* Drain sense test */
     if ((TestValue < 4734) || (TestValue > 5025))
     {
         TestCode = 4;
     }
     PORTB = 0x03; /* Turn Q1 Drive FET on */
     Timer(1);
-    TestValue = GetVoltage(Drain,1); /* Q1 test */
+    TestValue = GetVoltage(Drain, ADC10V); /* Q1 test */
     if ((TestValue < 0) || (TestValue > 10))
     {
         TestCode = 5;
@@ -1244,7 +1205,7 @@ TestResult:
     Timer(1);
     PORTB = 0x00; /* Turn Q2 Break FET on */
     Timer(1);
-    TestValue = GetVoltage(Drain,1); /* Q2 test */
+    TestValue = GetVoltage(Drain, ADC10V); /* Q2 test */
     if ((TestValue < 9701) || (TestValue > 10301))
     {
         TestCode = 6;
@@ -1317,8 +1278,8 @@ uint8_t LiPOStatus(void)
     Timer(1);
     /* Aux voltages are /4 since there are no voltage dividers */
     /* Voltages are im mV */
-    Aux0Data = GetVoltage(Aux0,0) / 4;
-    Aux1Data = GetVoltage(Aux1,0) / 4;
+    int32_t Aux0Data = GetVoltage(Aux0, ADC20V) / 4;
+    int32_t Aux1Data = GetVoltage(Aux1, ADC20V) / 4;
     if ((Aux0Data < 300) && (Aux1Data < 300))
     {
         LiPOInstalled = 1;
@@ -1360,11 +1321,11 @@ void SecretMode(void)
     count6 = 0;
     for (count=0; count < 600; count++)
     {
-        if (GetVoltage(Trigger,0) < TrigTrip)
+        if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
             TriggerHold = 0;
         }
-        if (((GetVoltage(Trigger,0) > LowBatteryVoltage)) && (TriggerHold == 0))
+        if (((GetVoltage(Trigger, ADC20V) > LowBatteryVoltage)) && (TriggerHold == 0))
         {
             if (EEPROM_read(0x20) == 0x00)
             {
@@ -1386,11 +1347,11 @@ void SecretMode(void)
     EEPROM_write(0x21, 0x01);
     for (count=0; count < 600; count++)
     {
-        if (GetVoltage(Trigger,0) < TrigTrip)
+        if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
             TriggerHold = 0;
         }
-        if (((GetVoltage(Trigger,0) > LowBatteryVoltage)) && (TriggerHold == 0))
+        if (((GetVoltage(Trigger, ADC20V) > LowBatteryVoltage)) && (TriggerHold == 0))
         {
             EEPROM_write(0x21, 0x00);
             count = 0;
@@ -1404,11 +1365,11 @@ void SecretMode(void)
     EEPROM_write(0x22, 0x01);
     for (count=0; count < 600; count++)
     {
-        if (GetVoltage(Trigger,0) < TrigTrip)
+        if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
             TriggerHold = 0;
         }
-        if (((GetVoltage(Trigger,0) > LowBatteryVoltage)) && (TriggerHold == 0))
+        if (((GetVoltage(Trigger, ADC20V) > LowBatteryVoltage)) && (TriggerHold == 0))
         {
             EEPROM_write(0x22, 0x00);
             count = 0;
@@ -1423,11 +1384,11 @@ void SecretMode(void)
     count6 = 0;
     for (count=0; count < 600; count++)
     {
-        if (GetVoltage(Trigger,0) < TrigTrip)
+        if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
             TriggerHold = 0;
         }
-        if (((GetVoltage(Trigger,0) > LowBatteryVoltage)) && (TriggerHold == 0))
+        if (((GetVoltage(Trigger, ADC20V) > LowBatteryVoltage)) && (TriggerHold == 0))
         {
             EEPROM_write(0x23, (char)(70 + 5 * count6));
             count6++;
