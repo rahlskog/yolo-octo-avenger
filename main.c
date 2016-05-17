@@ -76,34 +76,40 @@ Future changes:
 
 #define VersionNumber 0x32						/* Software version number programed to EEPROM */
 
-#define HighBatteryVoltage 16000				/* In mV */
-#define LowBatteryVoltage 7000					/* In mV */
-#define TriggerFiringVoltagePercent 80			/* Percent */
-#define BatteryVoltageDroopWarningPercent 85	/* Percent */
-#define TriggerHoldVoltage 3000					/* In mV */
-#define TrigTrip 500							/* In mV */
-
-#define DrainCurrentPeakLimit 250				/* In Amps */
-#define RDSon 2818								/* In uOhms (old 2870, 2766)*/
 #define TemperatureLimit 60						/* In Celcius */
-
 #define BreakTime 75							/* mS */
-
-#define Normal 1								/* These are GunModes made easy to read */
-#define ThreeRound 2
-#define ThreeRoundAuto 2
-#define SemiOnly 3								/* Semi Only gun function */
 
 #define Neutral 0x29							/* Port control values Modified for LiPO */
 #define Break 0x28
 #define Motor 0x2B
+
+/*	Initialize constants */
+static const uint16_t TimeFactor = 100;					/* Adjust for 1mS step.  Magically, the calibration factor = 100 */
+static const uint16_t TimeFactorFast = 1;				/* A sub mS timer counter */
+static const uint16_t RDSon = 2818;				/* In uOhms (old 2870, 2766)*/
+static const uint16_t HighBatteryVoltage = 16000;		/* In mV */
+static const uint16_t LowBatteryVoltage = 7000;			/* In mV */
+static const uint16_t TriggerHoldVoltage = 3000;		/* In mV */
+static const uint16_t TrigTrip = 500;					/* In mV */
+static const uint8_t TriggerFiringVoltagePercent = 80;	/* Percent */
+static const uint8_t BatteryVoltageDroopWarningPercent = 85;	/* Percent */
+static const uint8_t DrainCurrentPeakLimit = 250;				/* In Amps */
+
+
+typedef enum
+{
+ Normal = 1,		/* These are GunModes made easy to read */
+ ThreeRound = 2,
+ ThreeRoundAuto = 2,
+ SemiOnly = 3		/* Semi Only gun function */
+} GunMode_t;
 
 typedef enum 
 {
 	ADC20V = 0,		/* Set ADC to 20000 mV range */
 	ADC10V = 1,		/* Set ADC to 10230 mV range */
 	ADC1V1 = 2		/* Set ADC to 1100 mV range */
-} ADCVoltage;
+} ADCRange_t;
 
 /*	Define ATTINY85 ports (PBx) to the gun controls */
 /*	Note that these port numbers or NOT the physical pin numbers! */
@@ -115,7 +121,7 @@ typedef enum
 	Aux1 = 5,			/* AUX 0 I/O port */
 	Ground = 10,  		/* Internal A/D ground used for calibration */
 	Temperature = 11	/* Internal temperature probe.  Only use in mode 2 */
-} ADCInput;
+} Sensor_t;
 
 /* Function prototypes */
 void MotorOFF(void);						/* Turns the motor off */
@@ -123,10 +129,11 @@ void MotorON(void);							/* Turns the motor on */
 void BreakOFF(void);						/* Turns the break off */
 void BreakON(void);							/* Turns the break on */
 void EnergizeFETs(void);					/* Enables the FETs in a controled way */
-void Timer(int32_t Time);						/* A mS timer  Timer(123) = 123mS */
-void FastTimer(int32_t Time);					/* An unclaibrated ~15uS fast timer */
-uint16_t GetVoltage(ADCInput Sensor, ADCVoltage ADCRange);	/* Gets the Voltage (in mV) from the chosen source (Drain, Trigger, Aux) */
+void Timer(int32_t Time);					/* A mS timer  Timer(123) = 123mS */
+void FastTimer(int32_t Time);				/* An unclaibrated ~15uS fast timer */
+uint16_t GetVoltage(Sensor_t Sensor, ADCRange_t ADCRange);	/* Gets the Voltage (in mV) from the chosen source (Drain, Trigger, Aux) */
 void Vibrate(void);							/* Vibrates the gun's motor for signaling the user */
+void VibrateN (uint8_t VibCount);			/*  Multiple Vibrations */
 void CalibrateAtoD(void);					/* Calibrates A/D convertor */
 void EEPROM_write(uint8_t ucAdress, uint8_t ucData);	/* Write to EEPROM */
 uint8_t EEPROM_read(uint8_t ucAddress);					/* Read from EEPROM */
@@ -137,69 +144,56 @@ void MotorPWM(int8_t PWMduty);				/*	Motor PWM function */
 void SetAUXPorts(void);						/*  Setup AUX ports */
 void FactoryDiagnostics(void);				/*  Factory test */
 void EventLog(int8_t);						/*  Event logging */
-uint8_t LiPOStatus(void);				/*  LiPO battery check */
-//	void Diagnostic(int32_t DiagTime);				/*  Diagnostic test routein */
+uint8_t LiPOStatus(void);					/*  LiPO battery check */
+//	void Diagnostic(int32_t DiagTime);		/*  Diagnostic test routein */
 void SecretMode (void);						/*  Secret Programming Mode */
-void Vibrate1 (uint8_t);				/*  Multiple Vibrations */
 
-/*	Initialize variables */
-static const int32_t  TimeFactor = 100;					/* Adjust for 1mS step.  Magically, the calibration factor = 100 */
-static const int32_t  TimeFactorFast = 1;				/* A sub mS timer counter */
-
-/* int32_t is a 4 byte integer */
 
 uint8_t SemiOnlyLock = 0;				/* Semi-Only lock flag 0=off (default) 1=on 2=permant on*/
 uint8_t AutoRoll = 1;					/* 3-Round auto rollover flag 0=off 1=on (default) */
 uint8_t SoftStartEnable = 1;			/* Soft Start Enable 1=default */
-uint32_t  FiringCounter = 0;		/* Counts firing cycles*/
 
 int32_t HardBatteryVoltage = 0;				/* Hard Battery Voltage Setting in mV.  0=off*/
-int32_t  BatteryVoltageDroopWarning = 5500;/* mV */
-int32_t  TriggerFiringVoltage = 6000;		/* mV */
-int32_t  InitialBatteryVoltage = 0;		/* mV */
-int32_t  TriggerVoltage = 0;				/* The voltage on the trigger input in mV */
-int32_t  DrainCurrent = 0;					/* The current through the drive FET in Amps */
-int32_t  DrainVoltage = 0;					/* The voltage on the MOSFET drains mV */
-int32_t  VoltageOffset0 = 0;				/* A/D 5.0V REF offest error */
-int32_t  VoltageOffset1 = 0;				/* A/D 2.56V REF offest error */
-int32_t  VoltageOffset2 = 0;				/* A/D 1.1V REF offest error */
+int32_t InitialBatteryVoltage = 0;			/* mV */
+int32_t DrainCurrent = 0;				/* The current through the drive FET in Amps */
+int32_t VoltageOffset0 = 0;				/* A/D 5.0V REF offest error */
+int32_t VoltageOffset1 = 0;				/* A/D 2.56V REF offest error */
+int32_t VoltageOffset2 = 0;				/* A/D 1.1V REF offest error */
+int32_t SBTCounter = 0;					/* Burst time function counter */
 
-uint8_t  BurstTimeFactor = 80;				/* The single to three round burst ratio DEFAULT if EEPROM = FF*/
-/* 100 = 3.00 X the single shot time. 2X+100% */
-int16_t  BurstTimeFactorPercent = 0;		/* Real BurstTimeFactorPercent */
-uint8_t  MotorSpeed = 254;		/* 0 to 254 PWM value */
-int16_t  SingleShotTime = 70;				/* Default loops for single shot */
-int16_t  BurstTime = 205;					/* Default motor on time for a burst */
-int16_t  SingleShotTimeOld = 0;			/* Old value of single shot time */
-uint8_t  ErrorCode = 0;			/* The Errors are each given a unique number */
-uint16_t count = 0;				/* local counter */
-uint8_t  GunMode = Normal;		/* 1=trigger control (Normal) 2=burst (ThreeRoundAuto) */
-int32_t  ShotCounter = 0;					/* Shot count inside a burst */
-uint8_t  TriggerHold = 0;			/* Hold further shotting until trigger is released */
-int32_t  ModeCounter = 0;					/* A main loop counter for the threeround auto fuction */
-uint8_t  GunFunction = Normal;	/* Operating mode DEFAULT if EEPROM = FF */
-/* 1 = Normal  2 = ThreeRound  3 = Semi Only*/
-int32_t  SBTCounter = 0;					/* Burst time function counter */
-uint16_t counter5 = 0;						/* Master Reset time counter */
-int8_t  GunFunctionFlag = 0;				/* Counter used in mode programing */
-uint8_t BatteryVoltageEEPROM = 0;	/* Stored initial battery voltage */
-uint8_t DroopWarningFlag = 0;		/* Droop warning counter */
-uint8_t DroopWarningFlag1 = 0;	/* Hard Droop warning counter */
-uint8_t TestCode = 0;				/* Facotry test variable */
-uint8_t TestCounter = 0;			/* Factory test counter */
-uint8_t EventOld = 0;				/* Event logging variable */
-uint8_t LiPO = 0;					/* LiPO battery status */
-uint8_t LiPOInstalled = 0;		/* LiPO Installed flag */
-uint8_t BatteryLimitReset = 0;	/* LiPO Installed flag */
-int32_t DeadTimeCounter = 0;				/* Counter used to find battery rest time */
-uint8_t TemperatureMAX = 0;		/* Maximum temperature seen */
-int32_t RunningTemp = 0;					/* CPU temperature */
-uint8_t CurrentMAX = 0;			/* Maxiumum current seen / 10 */
-uint8_t OverTempLockout = 0;		/* Over temperature lockout flag */
-uint8_t count6 = 0;				/* Secret mode Loop counter */
+uint8_t BurstTimeFactor = 80;			/* The single to three round burst ratio DEFAULT if EEPROM = FF*/
+										/* 100 = 3.00 X the single shot time. 2X+100% */
+int16_t BurstTimeFactorPercent = 0;		/* Real BurstTimeFactorPercent */
+int16_t SingleShotTime = 70;			/* Default loops for single shot */
+int16_t BurstTime = 205;				/* Default motor on time for a burst */
+int16_t SingleShotTimeOld = 0;			/* Old value of single shot time */
+uint8_t MotorSpeed = 254;				/* 0 to 254 PWM value */
+uint8_t ErrorCode = 0;					/* The Errors are each given a unique number */
+uint8_t GunMode = Normal;				/* 1=trigger control (Normal) 2=burst (ThreeRoundAuto) */
+uint8_t TriggerHold = 0;				/* Hold further shotting until trigger is released */
+uint8_t GunFunction = Normal;			/* Operating mode DEFAULT if EEPROM = FF */
+										/* 1 = Normal  2 = ThreeRound  3 = Semi Only*/
+int8_t  GunFunctionFlag = 0;			/* Counter used in mode programing */
+uint8_t LiPOInstalled = 0;			/* LiPO Installed flag */
+uint8_t TemperatureMAX = 0;			/* Maximum temperature seen */
+uint8_t CurrentMAX = 0;				/* Maxiumum current seen / 10 */
 
-int main(void)
+__attribute__ ((noreturn))
+void main(void)
 {
+	uint32_t FiringCounter = 0;		/* Counts firing cycles*/
+	int32_t TriggerVoltage = 0;		/* The voltage on the trigger input in mV */
+	int32_t ModeCounter = 0;		/* A main loop counter for the threeround auto fuction */
+	int32_t ShotCounter = 0;		/* Shot count inside a burst */
+	int32_t DeadTimeCounter = 0;	/* Counter used to find battery rest time */
+	int32_t BatteryVoltageDroopWarning = 5500;	/* mV */
+	int32_t TriggerFiringVoltage = 6000;		/* mV */
+	int16_t RunningTemp = 0;		/* CPU temperature */
+	uint8_t DroopWarningFlag = 0;	/* Droop warning counter */
+	uint8_t DroopWarningFlag1 = 0;	/* Hard Droop warning counter */
+	uint8_t OverTempLockout = 0;	/* Over temperature lockout flag */
+	uint8_t LiPO = 0;				/* LiPO battery status */
+	uint8_t BatteryLimitReset = 0;		/* LiPO Installed flag */
     /*	MAIN POWER UP */
 
     /*	Wait 2 seconds for hardware to stabilize */
@@ -226,7 +220,7 @@ int main(void)
     SetAUXPorts();
 
     /*	Check drain voltage */
-    DrainVoltage = GetVoltage(Drain, ADC20V);
+    uint16_t DrainVoltage = GetVoltage(Drain, ADC20V); /* The voltage on the MOSFET drains mV */
     if (DrainVoltage < LowBatteryVoltage)
     {
         ErrorCode = 2;
@@ -252,7 +246,7 @@ int main(void)
     LiPO = LiPOStatus();
 
     /*	Vibrate status to motor */
-    for (count = 0; count < ErrorCode; count++)
+    for (uint8_t count = 0; count < ErrorCode; count++)
     {
         Timer(500);
         Vibrate();
@@ -278,7 +272,7 @@ Halt:
     */
 
     /*	Wait for trigger pull to enter programming mode (2 seconds) */
-    for (count=0; count < 1185; count++)
+    for (uint16_t count=0; count < 1185; count++)
     {
         if (GetVoltage(Trigger, ADC20V) > LowBatteryVoltage)
         {
@@ -508,15 +502,15 @@ CeaseFire:
     Timer(100);
     if (ErrorCode == 16)
     {
-        Vibrate1(1);
+        VibrateN(1);
     }
     if (ErrorCode == 17)
     {
-        Vibrate1(2);
+        VibrateN(2);
     }
     if (ErrorCode == 18)
     {
-        Vibrate1(3);
+        VibrateN(3);
     }
 
     ErrorCode = 0;
@@ -627,7 +621,7 @@ void SetAUXPorts(void)
 }
 
 
-uint16_t GetVoltage(ADCInput Sensor, ADCVoltage ADCRange)
+uint16_t GetVoltage(Sensor_t Sensor, ADCRange_t ADCRange)
 {
     int32_t  Voltage = 0;				/* A/D convertor returned voltage in mV */
     if (ADCRange == ADC1V1)				/* 0-1.1V range */
@@ -739,7 +733,7 @@ void Vibrate(void)
     }
 }
 
-void Vibrate1(uint8_t VibCount)
+void VibrateN(uint8_t VibCount)
 /* Vibrate multiple times */
 {
     for (uint8_t counter = 0; counter < VibCount; counter++)
@@ -805,7 +799,7 @@ void ProgramEEPROM(void)
     Vibrate();
     /* Pull Trigger now to go to set GunFunction by number of trigger pulls.  Limit = 2 */
     GunFunctionFlag = 0;
-    for (count=0; count < 600; count++)
+    for (uint16_t count=0; count < 600; count++)
     {
         if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
@@ -824,10 +818,10 @@ void ProgramEEPROM(void)
         }
     }
 
-    Vibrate1(1);
+    VibrateN(1);
     Vibrate();
     /* Pull Trigger now to go to decrease BurstTimeFactor by number of trigger pulls.  Limit = 0*/
-    for (count=0; count < 600; count++)
+    for (uint16_t count=0; count < 600; count++)
     {
         if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
@@ -841,10 +835,10 @@ void ProgramEEPROM(void)
         }
     }
 
-    Vibrate1(2);
+    VibrateN(2);
     Vibrate();
     /* Pull Trigger now to go to increase BurstTimeFactor by number of trigger pulls.  Limit = 250 */
-    for (count=0; count < 600; count++)
+    for (uint16_t count=0; count < 600; count++)
     {
         if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
@@ -858,10 +852,10 @@ void ProgramEEPROM(void)
         }
     }
 
-    Vibrate1(3);
+    VibrateN(3);
     Vibrate();
     /* Pull Trigger now to go to decrease MotorSpeed by number of trigger pulls.  Limit = 52*/
-    for (count=0; count < 600; count++)
+    for (uint16_t count=0; count < 600; count++)
     {
         if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
@@ -876,10 +870,10 @@ void ProgramEEPROM(void)
         }
     }
 
-    Vibrate1(4);
+    VibrateN(4);
     Vibrate();
     /* Pull Trigger now to go to increase MotorSpeed by number of trigger pulls.  Limit = 254 */
-    for (count=0; count < 600; count++)
+    for (uint16_t count=0; count < 600; count++)
     {
         if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
@@ -928,19 +922,20 @@ void ProgramEEPROM(void)
     }
     EEPROM_write(0x04, (char)MotorSpeed);
     InitialBatteryVoltage = (GetVoltage(Drain, ADC20V));
+	uint8_t BatteryVoltageEEPROM = 0;	/* Stored initial battery voltage */
     BatteryVoltageEEPROM = (char)(InitialBatteryVoltage / 100);
     EEPROM_write(0x05, (char)BatteryVoltageEEPROM);
 
-    Vibrate1(5);
+    VibrateN(5);
     Vibrate();
     /* Pull Trigger now to go to Master Reset */
-    counter5 = 0;
-    for (count=0; count < 600; count++)
+    uint16_t holdCounter = 0;
+    for (uint16_t count=0; count < 600; count++)
     {
         while (GetVoltage(Trigger, ADC20V) > LowBatteryVoltage)
         {
-            counter5++;
-            if (counter5 > 1500)
+            holdCounter++;
+            if (holdCounter > 1500)
             {
                 EEPROM_write(0x00,0xFF);
                 EEPROM_write(0x01,0xFF);
@@ -963,8 +958,8 @@ void ProgramEEPROM(void)
 
 
                 /* Pull Trigger now 10 times to go to secret mode */
-                count6 = 0;
-                for (count=0; count < 600; count++)
+                uint8_t pullCount = 0;
+                for (uint16_t count=0; count < 600; count++)
                 {
                     if (GetVoltage(Trigger, ADC20V) < TrigTrip)
                     {
@@ -972,8 +967,8 @@ void ProgramEEPROM(void)
                     }
                     if (((GetVoltage(Trigger, ADC20V) > LowBatteryVoltage)) && (TriggerHold == 0))
                     {
-                        count6++;
-                        if (count6 == 10)
+                        pullCount++;
+                        if (pullCount == 10)
                         {
                             SecretMode();
                         }
@@ -1164,7 +1159,8 @@ void MotorPWM(int8_t PWMduty)
 void FactoryDiagnostics(void)
 /* Factory test */
 {
-	int32_t TestValue = 0;	/* Factory test variable */
+	int32_t TestValue = 0;		/* Factory test variable */
+	uint8_t TestCode = 0;		/* Facotry test variable */
     /* Test for Trigger Key voltage */
     TestValue = GetVoltage(Trigger, ADC20V);
     if ((TestValue < 4392) || (TestValue > 5368))
@@ -1213,7 +1209,7 @@ TestResult:
     PORTB = 0x01; /* Turn Q2 Break FET off */
     Timer(1);
     /* Blink Error Code to AUX5 LED */
-    for (TestCounter = 0; TestCounter < TestCode; TestCounter++)
+    for (uint8_t TestCounter = 0; TestCounter < TestCode; TestCounter++)
     {
         PORTB = 0x21; /* LED on */
         Timer(500);	/* Wait 500mS */
@@ -1256,6 +1252,7 @@ void EventLog(int8_t Event)
 	3 = Over Temperature Limit	0x43
 	4 = Battery Voltage Reset	0x44 */
 {
+	uint8_t EventOld = 0;	/* Event logging variable */
     Event = Event + 64;
     EventOld = EEPROM_read((char)(Event));
     EventOld++;
@@ -1278,8 +1275,8 @@ uint8_t LiPOStatus(void)
     Timer(1);
     /* Aux voltages are /4 since there are no voltage dividers */
     /* Voltages are im mV */
-    int32_t Aux0Data = GetVoltage(Aux0, ADC20V) / 4;
-    int32_t Aux1Data = GetVoltage(Aux1, ADC20V) / 4;
+    uint16_t Aux0Data = GetVoltage(Aux0, ADC20V) / 4;
+    uint16_t Aux1Data = GetVoltage(Aux1, ADC20V) / 4;
     if ((Aux0Data < 300) && (Aux1Data < 300))
     {
         LiPOInstalled = 1;
@@ -1318,8 +1315,8 @@ void SecretMode(void)
     {
         EEPROM_write(0x20, 0x00);
     }
-    count6 = 0;
-    for (count=0; count < 600; count++)
+	uint8_t holdCount = 0;
+    for (uint16_t count=0; count < 600; count++)
     {
         if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
@@ -1331,8 +1328,8 @@ void SecretMode(void)
             {
                 EEPROM_write(0x20, 0x01);
             }
-            count6++;
-            if (count6 == 10)
+            holdCount++;
+            if (holdCount == 10)
             {
                 EEPROM_write(0x20, 0x02);
             }
@@ -1342,10 +1339,10 @@ void SecretMode(void)
     }
 
     /* AutoRoll */
-    Vibrate1(1);
+    VibrateN(1);
     Vibrate();
     EEPROM_write(0x21, 0x01);
-    for (count=0; count < 600; count++)
+    for (uint16_t count=0; count < 600; count++)
     {
         if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
@@ -1360,10 +1357,10 @@ void SecretMode(void)
     }
 
     /* Soft Start */
-    Vibrate1(2);
+    VibrateN(2);
     Vibrate();
     EEPROM_write(0x22, 0x01);
-    for (count=0; count < 600; count++)
+    for (uint16_t count=0; count < 600; count++)
     {
         if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
@@ -1378,11 +1375,11 @@ void SecretMode(void)
     }
 
     /* HardBatteryVoltage */
-    Vibrate1(3);
+    VibrateN(3);
     Vibrate();
     EEPROM_write(0x23, 0x00);
-    count6 = 0;
-    for (count=0; count < 600; count++)
+    holdCount = 0;
+    for (uint16_t count=0; count < 600; count++)
     {
         if (GetVoltage(Trigger, ADC20V) < TrigTrip)
         {
@@ -1390,8 +1387,8 @@ void SecretMode(void)
         }
         if (((GetVoltage(Trigger, ADC20V) > LowBatteryVoltage)) && (TriggerHold == 0))
         {
-            EEPROM_write(0x23, (char)(70 + 5 * count6));
-            count6++;
+            EEPROM_write(0x23, (char)(70 + 5 * holdCount));
+            holdCount++;
             count = 0;
             TriggerHold = 1;
         }
